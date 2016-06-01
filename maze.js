@@ -106,7 +106,7 @@ function Grid(rows, cols) {
         output+= "\n";
 
         for (var row = 0; row < _rows; row++) {
-            var top = "|";
+            var top = row == 0 ? " " : "|";
             var bottom = "+";
 
             for (var col = 0; col < _cols; col++) {
@@ -116,6 +116,11 @@ function Grid(rows, cols) {
                 
                 var body = "   ";
                 var east_boundary = cell.isLinked(cell.east) ? " " : "|";
+
+                if (col == _cols - 1 && row == _rows - 1) {
+                    east_boundary = " ";
+                }
+                
                 top+= body + east_boundary;
 
                 var south_boundary = cell.isLinked(cell.south) ? "   " : "---";
@@ -129,6 +134,8 @@ function Grid(rows, cols) {
 
         return output;
     };
+
+    
     
 }
 
@@ -192,8 +199,125 @@ function Sidewinder() {
     };
 }
 
-var grid = new Grid(14, 14);
-// new BinaryTree().on(grid);
-new Sidewinder().on(grid);
 
-console.log(grid + "a");
+
+function Graph() {
+    var data = {};
+
+    this.toId = function(i, j) {
+        return j + "," + i;
+    };
+
+    this.get = function(i, j) {
+        var id = this.toId(i, j);
+        if (data[id] === undefined) {
+            data[id] = new Cell(j, i);
+        }
+        return data[id];
+    };
+
+    this.toString = function() {
+        return data;
+    };
+
+    function getKeyParts(key) {
+        var parts = key.split(",");
+        return {
+            "i": parseInt(parts[1]),
+            "j": parseInt(parts[0]),
+        };
+    }
+
+    this.configure = function() {
+        for (var key in data) {
+            var currentParts = getKeyParts(key);
+            var currentCell = data[key];
+            for (var okey in currentCell["links"]) {
+                var parts = getKeyParts(okey);
+                if (parts.i == currentParts.i + 1) {
+                    currentCell.east = true;
+                }
+                else if (parts.i == currentParts.i - 1) {
+                    currentCell.west = true;
+                }
+
+                if (parts.j == currentParts.j + 1) {
+                    currentCell.south = true;
+                }
+                else if (parts.j == currentParts.j - 1) {
+                    currentCell.north = true;
+                }
+            }
+        }
+    }
+    
+}
+
+function parse(maze) {
+
+    var lines = maze.trim().split("\n");
+
+    var numHLines = Math.ceil(lines.length / 2);
+    var numVLines = null;
+    var graph = new Graph();
+
+    
+    var currentJ = 0; // row (in nodes)
+    var step = 4;
+    
+    lines.forEach(function(line, lineNum) {
+        
+        var lineList = line.split('');
+        
+        var numNodes = Math.ceil(lineList.length / step);
+        if (!numVLines) {
+
+            if (lineList.length % 2 == 0) {
+                throw "Invalid line, length is even";
+            }
+            
+            numVLines = numNodes;
+        }
+        else {
+            if (numVLines != numNodes) {
+                throw "Line length mismatch, was " + numVLines + ", now " + numNodes;
+            }
+        }
+
+        if (lineNum % 2 == 0) {
+
+            if (lineList[0] !== "+") {
+                throw "Bad start character, looking for +, received " + lineList[0];
+            }
+            
+            for (var i = 1; i < lineList.length; i+= step) {
+                if (lineList[i] == "-") {
+                    var current = graph.get(Math.floor(i / step), currentJ);
+                    var next = graph.get(Math.ceil(i / step), currentJ);
+                    current.link(next);
+                }
+            }
+        }
+        else {
+            for (var i = 0; i < lineList.length; i+= step) {
+                if (lineList[i] == "|") {
+                    graph.get(i / step, currentJ).link(graph.get(i / step, currentJ + 1));
+                }
+            }
+            currentJ++;
+        }
+    });
+
+    graph.configure();
+
+    return graph;
+}
+
+var grid = new Grid(2, 2);
+// new BinaryTree().on(grid);
+// new Sidewinder().on(grid);
+
+console.log(grid + "");
+
+
+console.log(parse(grid.toString()).toString());
