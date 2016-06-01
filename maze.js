@@ -16,6 +16,8 @@ function Cell(row, col) {
         if (bidirectional === undefined || bidirectional) {
             cell.link(this, false);
         }
+
+        return this;
     };
 
     this.unlink = function(cell, bidirectional) {
@@ -24,6 +26,8 @@ function Cell(row, col) {
         if (bidirectional === undefined || bidirectional) {
             cell.unlink(this, false);
         }
+
+        return this;
     };
 
     this.getLinks = function() {
@@ -36,12 +40,27 @@ function Cell(row, col) {
 
     this.neighbours = function() {
         var output = [];
-        if (this.north) output.push(north);
-        if (this.east) output.push(east);
-        if (this.south) output.push(south);
-        if (this.west) output.push(west);
+        if (this.north) output.push(this.north);
+        if (this.east) output.push(this.east);
+        if (this.south) output.push(this.south);
+        if (this.west) output.push(this.west);
         return output;
     };
+
+    this.cut = function(direction, other) {
+        this[direction] = false;
+        other[oppositeDirection(direction)] = false;
+        
+    }
+}
+
+function oppositeDirection(dir) {
+    switch (dir) {
+    case "east": return "west";
+    case "west": return "east";
+    case "north": return "south";
+    case "south": return "north";
+    }
 }
 
 function Grid(rows, cols) {
@@ -202,6 +221,8 @@ function Sidewinder() {
 
 
 function Graph() {
+    // i, j == x, y == col, row
+    
     var data = {};
 
     this.toId = function(i, j) {
@@ -235,21 +256,108 @@ function Graph() {
             for (var okey in currentCell["links"]) {
                 var parts = getKeyParts(okey);
                 if (parts.i == currentParts.i + 1) {
-                    currentCell.east = true;
+                    currentCell.east = this.toId(parts.i, currentParts.j);
                 }
                 else if (parts.i == currentParts.i - 1) {
-                    currentCell.west = true;
+                    currentCell.west = this.toId(parts.i, currentParts.j);
                 }
 
                 if (parts.j == currentParts.j + 1) {
-                    currentCell.south = true;
+                    currentCell.south = this.toId(currentParts.i, parts.j);
                 }
                 else if (parts.j == currentParts.j - 1) {
-                    currentCell.north = true;
+                    currentCell.north = this.toId(currentParts.i, parts.j);
                 }
             }
         }
-    }
+    };
+
+    this.go = function() {
+
+        var currentCell = this.get(0, 0), lastCell = null;
+        var direction = "east";
+
+        var directions = ["east", "south", "west", "north"];
+        var directionIndex = 0;
+        
+        function currentDirection() {
+            return directions[directionIndex];
+        }
+
+        function switchDirection() {
+            directionIndex = (directionIndex + 1) % directions.length;
+            return directionIndex !== 0;
+        }
+
+        var paths = [[]];
+        var currentPath = 0;
+        
+        function addPoint(cellId) {
+            paths[currentPath].push(cellId);
+        }
+
+        function addPath() {
+            paths.push([]);
+            currentPath++;
+        }
+
+
+        function dive(cell, switched) {
+
+            var dir = currentDirection();
+            
+            if (cell[dir]) {
+                // we're can go in the current direction
+                var next = data[cell[dir]];
+
+                // remove connections between us and next
+                cell.cut(dir, next);
+
+                // log the point
+                addPoint(cell.id);
+
+                // move on!
+                dive(next);
+            }
+            else {
+                // we need to try a new direction
+                switchDirection();
+
+                // don't log a point if we switched one step before
+                if (switched === undefined) {
+                    addPoint(cell.id);
+                }
+
+                // if we have somewhere to go, try!
+                if (cell.neighbours().length > 0) {
+                    dive(cell, true);                    
+                }
+
+            }
+
+            // we are now backtracking
+            // if there are undiscovered places, go for it.
+            if (cell.neighbours().length > 0) {
+                addPath();
+                dive(data[cell.id], true);
+            }
+
+
+        }
+        
+
+        // addPoint(currentCell.id);
+        dive(currentCell);
+
+        console.log(paths);
+
+        // the next phase is to remove the intermediate steps where the line
+        // is straight
+
+        
+        
+        return paths;
+    };
     
 }
 
@@ -313,11 +421,12 @@ function parse(maze) {
     return graph;
 }
 
-var grid = new Grid(2, 2);
+var grid = new Grid(5, 5);
 // new BinaryTree().on(grid);
-// new Sidewinder().on(grid);
+new Sidewinder().on(grid);
 
 console.log(grid + "");
 
-
-console.log(parse(grid.toString()).toString());
+var graph = parse(grid.toString());
+// console.log(graph.toString());
+graph.go();
