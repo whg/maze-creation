@@ -1,7 +1,7 @@
 function Cell(row, col) {
 
     var _row = row, _col = col;
-    
+
     this.links = {};
     this.north = false;
     this.east = false;
@@ -9,7 +9,7 @@ function Cell(row, col) {
     this.west = false;
 
     this.id = row + "," + col;
-    
+
     this.link = function(cell, bidirectional) {
         this.links[cell.id] = true;
 
@@ -50,7 +50,7 @@ function Cell(row, col) {
     this.cut = function(direction, other) {
         this[direction] = false;
         other[oppositeDirection(direction)] = false;
-        
+
     }
 }
 
@@ -131,15 +131,15 @@ function Grid(rows, cols) {
             for (var col = 0; col < _cols; col++) {
 
                 var cell = this.grid[row][col];
-                
-                
+
+
                 var body = "   ";
                 var east_boundary = cell.isLinked(cell.east) ? " " : "|";
 
                 if (col == _cols - 1 && row == _rows - 1) {
                     east_boundary = " ";
                 }
-                
+
                 top+= body + east_boundary;
 
                 var south_boundary = cell.isLinked(cell.south) ? "   " : "---";
@@ -154,8 +154,8 @@ function Grid(rows, cols) {
         return output;
     };
 
-    
-    
+
+
 }
 
 Array.prototype.sample = function () {
@@ -182,9 +182,9 @@ function BinaryTree() {
             }
 
         });
-        
+
     };
-    
+
 }
 
 function Sidewinder() {
@@ -222,8 +222,9 @@ function Sidewinder() {
 
 function Graph() {
     // i, j == x, y == col, row
-    
+
     var data = {};
+    var maxI = 0, maxJ = 0;
 
     this.toId = function(i, j) {
         return j + "," + i;
@@ -233,6 +234,10 @@ function Graph() {
         var id = this.toId(i, j);
         if (data[id] === undefined) {
             data[id] = new Cell(j, i);
+
+            // keep track of what's been got
+            if (j > maxJ) maxJ = j;
+            if (i > maxI) maxI = i;
         }
         return data[id];
     };
@@ -272,14 +277,11 @@ function Graph() {
         }
     };
 
-    this.go = function() {
-
-        var currentCell = this.get(0, 0), lastCell = null;
-        var direction = "east";
+    this.walls = function() {
 
         var directions = ["east", "south", "west", "north"];
         var directionIndex = 0;
-        
+
         function currentDirection() {
             return directions[directionIndex];
         }
@@ -291,7 +293,7 @@ function Graph() {
 
         var paths = [[]];
         var currentPath = 0;
-        
+
         function addPoint(cellId) {
             paths[currentPath].push(cellId);
         }
@@ -305,7 +307,7 @@ function Graph() {
         function dive(cell, switched) {
 
             var dir = currentDirection();
-            
+
             if (cell[dir]) {
                 // we're can go in the current direction
                 var next = data[cell[dir]];
@@ -330,7 +332,7 @@ function Graph() {
 
                 // if we have somewhere to go, try!
                 if (cell.neighbours().length > 0) {
-                    dive(cell, true);                    
+                    dive(cell, true);
                 }
 
             }
@@ -344,21 +346,56 @@ function Graph() {
 
 
         }
-        
+
 
         // addPoint(currentCell.id);
-        dive(currentCell);
+        dive(this.get(0, 0));
+        addPath();
+        dive(this.get(maxI, maxJ));
 
-        console.log(paths);
+
+        // console.log(paths);
+        // produces something like:
+        // [ [ '0,0', '0,1', '0,2', '0,3', '0,4', '0,5', '0,5', '1,5', '2,5', '3,5' ],
+        //   [ '2,5', '2,4', '2,3' ],
+        //   [ '2,4', '1,4', '1,4', '1,3', '1,2' ] ]
+
 
         // the next phase is to remove the intermediate steps where the line
         // is straight
 
-        
-        
-        return paths;
+        var segmented_paths = paths.map(function(path) {
+            var segments = [path[0]];
+            for (var i = 1; i < path.length; i++) {
+                if (path[i - 1] === path[i]) {
+                    segments.push(path[i]);
+                }
+            }
+            segments.push(path[path.length - 1]);
+            return segments;
+        });
+
+        // console.log(segmented_paths);
+        // now
+        // [ [ '0,0', '0,5', '3,5' ],
+        //   [ '2,5', '2,3' ],
+        //   [ '2,4', '1,4', '1,2' ] ]
+
+        var xy_paths = segmented_paths.map(function(path) {
+            return path.map(function(key) {
+                var obj = getKeyParts(key);
+                return { "x": obj.i, "y": obj.j };
+            });
+        });
+
+        var output = {
+            "paths" : xy_paths,
+        };
+
+        // return JSON.stringify(output);
+        return xy_paths;
     };
-    
+
 }
 
 function parse(maze) {
@@ -369,21 +406,21 @@ function parse(maze) {
     var numVLines = null;
     var graph = new Graph();
 
-    
+
     var currentJ = 0; // row (in nodes)
     var step = 4;
-    
+
     lines.forEach(function(line, lineNum) {
-        
+
         var lineList = line.split('');
-        
+
         var numNodes = Math.ceil(lineList.length / step);
         if (!numVLines) {
 
             if (lineList.length % 2 == 0) {
                 throw "Invalid line, length is even";
             }
-            
+
             numVLines = numNodes;
         }
         else {
@@ -397,7 +434,7 @@ function parse(maze) {
             if (lineList[0] !== "+") {
                 throw "Bad start character, looking for +, received " + lineList[0];
             }
-            
+
             for (var i = 1; i < lineList.length; i+= step) {
                 if (lineList[i] == "-") {
                     var current = graph.get(Math.floor(i / step), currentJ);
@@ -421,12 +458,44 @@ function parse(maze) {
     return graph;
 }
 
-var grid = new Grid(5, 5);
+var grid = new Grid(6, 6);
 // new BinaryTree().on(grid);
 new Sidewinder().on(grid);
 
-console.log(grid + "");
+console.log(grid.toString());
 
 var graph = parse(grid.toString());
-// console.log(graph.toString());
-graph.go();
+//console.log(graph.toString());
+var q = graph.walls();
+// console.log(q);
+
+function toHPGL(paths, offset, unitLength) {
+    var output = "SP1;VS3;";
+
+    if (unitLength === undefined) {
+        unitLength = 100;
+    }
+
+    function point(p) {
+        return (p.x * unitLength + offset.x) + "," + (p.y * unitLength + offset.y);
+    }
+
+    paths.forEach(function(path) {
+        output+= "PU" + point(path[0]) + ";";
+        output+= "PD" + point(path[0]) + ",";
+        for (var i = 1; i < path.length; i++) {
+            output+= point(path[i]);
+
+            if (i != path.length - 1) {
+                output+= ",";
+            }
+        }
+        output+= ";";
+    });
+
+    output+= "PU0,0;";
+
+    return output;
+}
+console.log(q);
+console.log(toHPGL(q, { x: 8000, y : 2500 }, 200))
